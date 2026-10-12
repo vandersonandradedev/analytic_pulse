@@ -1,8 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   Bell,
+  CheckCircle2,
+  Clock,
   Plus,
+  Send,
   Trash2,
+  XCircle,
   Zap,
 } from 'lucide-react';
 import {
@@ -79,7 +84,8 @@ export const AlertsPage: React.FC = () => {
     channel_ids: [] as string[],
   });
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [ch, rl, dl, mons] = await Promise.all([
         getAlertChannels(),
@@ -93,9 +99,13 @@ export const AlertsPage: React.FC = () => {
       setMonitors(mons);
       setError('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Falha ao carregar alertas');
+      if (!silent) {
+        setError(err instanceof Error ? err.message : 'Falha ao carregar alertas');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -103,7 +113,21 @@ export const AlertsPage: React.FC = () => {
     load();
   }, [load]);
 
-  useLiveData(() => load(), !loading);
+  useLiveData(() => load(true), !loading);
+
+  // Polling silencioso em tempo real para auditoria de entregas da fila MesaGo
+  useEffect(() => {
+    if (tab !== 'deliveries') return;
+    const interval = setInterval(async () => {
+      try {
+        const dl = await getAlertDeliveries();
+        setDeliveries(dl);
+      } catch {
+        // atualização silenciosa
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [tab]);
 
   async function handleCreateChannel(e: React.FormEvent) {
     e.preventDefault();
@@ -211,7 +235,7 @@ export const AlertsPage: React.FC = () => {
           [
             { id: 'rules', label: 'Regras' },
             { id: 'channels', label: 'Canais' },
-            { id: 'deliveries', label: 'Entregas' },
+            { id: 'deliveries', label: 'Histórico de Notificações' },
           ] as const
         ).map((t) => (
           <button
@@ -300,22 +324,194 @@ export const AlertsPage: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {deliveries.length === 0 && (
-            <div className="glass" style={{ padding: 32, textAlign: 'center', color: 'var(--text-muted)' }}>
-              Nenhuma entrega ainda.
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div
+            className="glass"
+            style={{
+              padding: '16px 20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+              borderLeft: '4px solid #10b981',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <h2 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Histórico de Notificações</h2>
+                <span
+                  className="badge badge-up"
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 8px',
+                    fontWeight: 600,
+                    gap: 6,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: '50%',
+                      background: '#10b981',
+                      display: 'inline-block',
+                      boxShadow: '0 0 8px #10b981',
+                      animation: 'pulse 1.8s infinite',
+                    }}
+                  />
+                  Tempo Real (MesaGo Queue)
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+                Auditoria dos últimos envios processados pela fila assíncrona do MesaGo.
+              </p>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {deliveries.length} {deliveries.length === 1 ? 'notificação auditada' : 'notificações auditadas'}
+              </span>
+            </div>
+          </div>
+
+          {deliveries.length === 0 ? (
+            <div className="glass" style={{ padding: 40, textAlign: 'center' }}>
+              <Send size={28} style={{ marginBottom: 10, opacity: 0.5, color: 'var(--text-muted)' }} />
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>Nenhuma notificação registrada</div>
+              <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>
+                Os alertas disparados e processados pela fila assíncrona do MesaGo aparecerão aqui silenciosamente em tempo real.
+              </p>
+            </div>
+          ) : (
+            deliveries.map((d) => {
+              const channel = channels.find((c) => c.id === d.channel_id);
+              const rule = rules.find((r) => r.id === d.rule_id);
+              const monitor = monitors.find((m) => m.id === d.monitor_id);
+
+              const statusBadge =
+                d.status === 'sent' ? (
+                  <span className="badge badge-up">
+                    <CheckCircle2 size={12} /> Enviado
+                  </span>
+                ) : d.status === 'failed' ? (
+                  <span className="badge badge-down">
+                    <XCircle size={12} /> Falha no Envio
+                  </span>
+                ) : d.status === 'pending' ? (
+                  <span
+                    className="badge"
+                    style={{
+                      background: 'rgba(234, 179, 8, 0.15)',
+                      color: '#eab308',
+                      border: '1px solid rgba(234, 179, 8, 0.3)',
+                    }}
+                  >
+                    <Clock size={12} /> Na Fila MesaGo
+                  </span>
+                ) : (
+                  <span className="badge badge-unknown">
+                    <AlertTriangle size={12} /> Suprimido
+                  </span>
+                );
+
+              return (
+                <div
+                  key={d.id}
+                  className="glass"
+                  style={{
+                    padding: 16,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'flex-start',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      {statusBadge}
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>
+                        {channel ? channel.name : `Canal: ${d.channel_id.slice(0, 8)}`}
+                      </span>
+                      {channel?.kind && (
+                        <span
+                          className="badge"
+                          style={{
+                            fontSize: 11,
+                            padding: '1px 6px',
+                            background: 'rgba(255, 255, 255, 0.06)',
+                          }}
+                        >
+                          {channel.kind.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      {new Date(d.fired_at || d.created_at).toLocaleString('pt-BR')}
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 16,
+                      fontSize: 13,
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Regra: </span>
+                      <strong>{rule ? rule.name : d.rule_id.slice(0, 8)}</strong>
+                    </div>
+
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Monitor: </span>
+                      <strong>
+                        {monitor ? monitor.name : d.monitor_id ? d.monitor_id.slice(0, 8) : 'Geral (Global)'}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <span style={{ color: 'var(--text-muted)' }}>Tentativa: </span>
+                      <span>#{d.attempt || 1}</span>
+                    </div>
+
+                    {d.escalation_step > 0 && (
+                      <div>
+                        <span style={{ color: 'var(--text-muted)' }}>Escalonamento: </span>
+                        <span>Passo {d.escalation_step + 1}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {d.last_error && (
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.25)',
+                        borderRadius: 6,
+                        color: '#f87171',
+                        fontSize: 12,
+                        wordBreak: 'break-word',
+                        fontFamily: 'monospace',
+                      }}
+                    >
+                      <strong>Erro retornado:</strong> {d.last_error}
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
-          {deliveries.map((d) => (
-            <div key={d.id} className="glass" style={{ padding: 14, fontSize: 13 }}>
-              <span className={`badge ${d.status === 'sent' ? 'badge-up' : d.status === 'failed' ? 'badge-down' : 'badge-unknown'}`}>
-                {d.status}
-              </span>{' '}
-              attempt {d.attempt} · step {d.escalation_step} ·{' '}
-              {new Date(d.created_at).toLocaleString('pt-BR')}
-              {d.last_error ? ` · ${d.last_error}` : ''}
-            </div>
-          ))}
         </div>
       )}
 
