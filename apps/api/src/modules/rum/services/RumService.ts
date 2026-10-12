@@ -11,6 +11,66 @@ import type {
 } from '@analytic-pulse/shared';
 import { NotFoundError, ValidationError } from '@analytic-pulse/shared';
 import { query } from '../../../infrastructure/db';
+import { logger } from '../../../observability/logger';
+
+export const DEFAULT_DASHBOARD_RUM_TOKEN = 'ap_rum_2JOpr7gSzi0un4UwQ-nGW5rtZXIhgzvy';
+
+export async function ensureDefaultRumSite(): Promise<void> {
+  try {
+    // Garante que as tabelas de RUM existam no Postgres
+    await query(`
+      CREATE TABLE IF NOT EXISTS rum_sites (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name            VARCHAR(120) NOT NULL,
+        origin_allow    VARCHAR(500),
+        token_hash      VARCHAR(64) NOT NULL UNIQUE,
+        token_prefix    VARCHAR(16) NOT NULL,
+        last_seen_at    TIMESTAMPTZ,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW()),
+        updated_at      TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW())
+      );
+      CREATE INDEX IF NOT EXISTS idx_rum_sites_user ON rum_sites(user_id);
+      CREATE INDEX IF NOT EXISTS idx_rum_sites_token_hash ON rum_sites(token_hash);
+
+      CREATE TABLE IF NOT EXISTS rum_events (
+        id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        site_id         UUID NOT NULL REFERENCES rum_sites(id) ON DELETE CASCADE,
+        user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        event_type      VARCHAR(40) NOT NULL,
+        name            VARCHAR(200),
+        value           DOUBLE PRECISION,
+        url             TEXT,
+        path            TEXT,
+        referrer        TEXT,
+        user_agent      TEXT,
+        session_id      VARCHAR(64),
+        meta            JSONB NOT NULL DEFAULT '{}'::jsonb,
+        created_at      TIMESTAMPTZ NOT NULL DEFAULT TIMEZONE('utc', NOW())
+      );
+      CREATE INDEX IF NOT EXISTS idx_rum_events_user_created ON rum_events(user_id, created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_rum_events_site_created ON rum_events(site_id, created_at DESC);
+    `);
+
+    const userRes = await query(`SELECT id FROM users ORDER BY created_at ASC LIMIT 1`);
+    if (userRes.rows.length === 0) return;
+
+    const userId = userRes.rows[0].id as string;
+    const hash = crypto.createHash('sha256').update(DEFAULT_DASHBOARD_RUM_TOKEN).digest('hex');
+
+    await query(
+      `INSERT INTO rum_sites (user_id, name, origin_allow, token_hash, token_prefix)
+       VALUES ($1, 'analytic-pulse', NULL, $2, $3)
+       ON CONFLICT (token_hash) DO NOTHING`,
+      [userId, hash, DEFAULT_DASHBOARD_RUM_TOKEN.slice(0, 12)]
+    );
+    logger.info('Default RUM site verified/provisioned');
+  } catch (err) {
+    logger.warn('Could not verify/provision default RUM site', {
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
 
 const VALID_TYPES: RumEventType[] = ['page_view', 'web_vital', 'error', 'custom'];
 const MAX_BATCH = 50;
@@ -120,12 +180,38 @@ export class RumService {
 
   async findByToken(token: string): Promise<RumSite | null> {
     if (!token.startsWith('ap_rum_')) return null;
-    const result = await query(
-      `SELECT * FROM rum_sites WHERE token_hash = $1`,
-      [hashToken(token)]
-    );
-    if (result.rows.length === 0) return null;
-    return mapSite(result.rows[0] as Record<string, unknown>);
+    const hash = hashToken(token);
+    try {
+      const result = await query(
+        `SELECT * FROM rum_sites WHERE token_hash = $1`,
+        [hash]
+      );
+      if (result.rows.length > 0) {
+        return mapSite(result.rows[0] as Record<string, unknown>);
+      }
+    } catch {
+      // Se a tabela ainda não existir no banco, tenta auto-provisionar abaixo
+    }
+
+    // Auto-provision do token padrão do dashboard caso ainda não exista no banco
+    if (token === DEFAULT_DASHBOARD_RUM_TOKEN) {
+      try {
+        await ensureDefaultRumSite();
+        const result = await query(
+          `SELECT * FROM rum_sites WHERE token_hash = $1`,
+          [hash]
+        );
+        if (result.rows.length > 0) {
+          return mapSite(result.rows[0] as Record<string, unknown>);
+        }
+      } catch (err) {
+        logger.error('Failed to auto-provision default RUM site on token lookup', {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    return null;
   }
 
   async ingest(

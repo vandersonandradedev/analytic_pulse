@@ -76,7 +76,7 @@ async function flush(): Promise<void> {
   const body = JSON.stringify({ events: batch });
 
   try {
-    await fetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -86,6 +86,13 @@ async function flush(): Promise<void> {
       keepalive: true,
       mode: 'cors',
     });
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        // Token inválido ou não autorizado: limpa a fila e evita loops
+        queue = [];
+        return;
+      }
+    }
   } catch {
     // re-enfileira no início (best effort)
     queue.unshift(...batch);

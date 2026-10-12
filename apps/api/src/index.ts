@@ -20,7 +20,7 @@ import { dockerRouter } from './modules/docker';
 import { kubernetesRouter } from './modules/kubernetes';
 import { aiRouter } from './modules/ai';
 import { eventsRouter } from './modules/realtime';
-import { rumRouter } from './modules/rum';
+import { rumRouter, ensureDefaultRumSite } from './modules/rum';
 import { vigiaRouter } from './modules/vigia';
 import {
   apiKeysRouter,
@@ -225,6 +225,7 @@ const server = app.listen(env.port, async () => {
     logger.warn('Database connected but schema missing — run schema.sql');
   } else {
     logger.info('Database connected and schema ready');
+    await ensureDefaultRumSite();
   }
 
   await registerTelegramWebhook();
