@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ShieldCheck, Database, Server, RefreshCw, Cpu, HardDrive, Zap, AlertCircle } from 'lucide-react';
+import { ShieldCheck, Database, Server, RefreshCw, Cpu, HardDrive, Zap } from 'lucide-react';
 import { getApiHealth } from '../services/api';
 
 interface RedisMetricInfo {
@@ -61,6 +61,8 @@ interface HealthData {
   };
   redis?: RedisMetricInfo;
   redis2?: RedisMetricInfo;
+  redis3?: RedisMetricInfo;
+  redis4?: RedisMetricInfo;
 }
 
 function formatUptime(seconds: number): string {
@@ -186,10 +188,15 @@ export function ApiStatusPage() {
   const pg = health?.postgres;
   const rd1 = health?.redis;
   const rd2 = health?.redis2;
+  const rd3 = health?.redis3;
+  const rd4 = health?.redis4;
   const api = health?.api;
 
+  // Decide whether to display Redis 4
+  const hasRd4 = Boolean(rd4 && (rd4.connected || (rd4.error && !rd4.error.includes('not configured'))));
+
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -197,7 +204,7 @@ export function ApiStatusPage() {
             Status & Consumo da Infraestrutura
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Monitoramento em tempo real do Backend (Node.js), PostgreSQL (Neon) e Redis Cloud (Instâncias 1 e 2)
+            Monitoramento em tempo real do Backend, PostgreSQL (Neon) e instâncias Redis Cloud (torqueOS, Fluorescent e Mesago)
           </p>
         </div>
         <button
@@ -210,7 +217,7 @@ export function ApiStatusPage() {
       </div>
 
       {/* Main Status Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* API Server */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col justify-between">
           <div>
@@ -281,12 +288,44 @@ export function ApiStatusPage() {
             </p>
           </div>
         </div>
+
+        {/* Redis 3 (Mesago) */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 text-sm">
+                <ShieldCheck className="w-4 h-4 text-rose-500" /> Redis Mesago
+              </h3>
+              <StatusBadge ok={rd3?.connected ?? false} labelOk="Conectado" labelFail="Desconectado" />
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {rd3?.connected ? 'Cache ativo' : rd3?.error || 'Não configurado'}
+            </p>
+          </div>
+        </div>
+
+        {/* Redis 4 (Mesago 2 - optional) */}
+        {hasRd4 && (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 text-sm">
+                  <ShieldCheck className="w-4 h-4 text-rose-500" /> Redis Mesago 2
+                </h3>
+                <StatusBadge ok={rd4?.connected ?? false} labelOk="Conectado" labelFail="Desconectado" />
+              </div>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {rd4?.connected ? 'Cache ativo' : rd4?.error || 'Não configurado'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Detailed Metrics Section */}
       <h2 className="text-lg font-bold text-gray-800 dark:text-white pt-2">Métricas de Consumo & Performance</h2>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {/* API Metrics */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3 pb-2 border-b border-gray-100 dark:border-gray-700 text-sm">
@@ -353,6 +392,14 @@ export function ApiStatusPage() {
 
         {/* Redis 2 */}
         <RedisMetricCard title="Redis 2 (Fluorescent)" data={rd2} envName="REDIS_URL_2" />
+
+        {/* Redis 3 (Mesago) */}
+        <RedisMetricCard title="Redis Mesago" data={rd3} envName="REDIS_MESAGO_URL" />
+
+        {/* Redis 4 (Mesago 2 - optional) */}
+        {hasRd4 && (
+          <RedisMetricCard title="Redis Mesago 2" data={rd4} envName="REDIS_MESAGO_URL_2" />
+        )}
       </div>
     </div>
   );

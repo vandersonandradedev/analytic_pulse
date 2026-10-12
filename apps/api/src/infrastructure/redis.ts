@@ -4,6 +4,8 @@ import { logger } from '../observability/logger';
 
 export let redis: Redis | null = null;
 export let redis2: Redis | null = null;
+export let redis3: Redis | null = null;
+export let redis4: Redis | null = null;
 
 function createRedisClient(url: string | undefined, name: string): Redis | null {
   if (!url) return null;
@@ -33,6 +35,8 @@ function createRedisClient(url: string | undefined, name: string): Redis | null 
 
 redis = createRedisClient(env.redisUrl, 'Redis Primary');
 redis2 = createRedisClient(env.redisUrl2, 'Redis Secondary');
+redis3 = createRedisClient(env.redisUrl3, 'Redis Mesago');
+redis4 = createRedisClient(env.redisUrl4, 'Redis Mesago 2');
 
 export async function checkRedis(client: Redis | null = redis, envName = 'REDIS_URL'): Promise<{ connected: boolean; error?: string }> {
   if (!client) {

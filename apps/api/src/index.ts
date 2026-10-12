@@ -28,7 +28,7 @@ import {
   openapiSpec,
 } from './modules/publicapi';
 import { checkDatabase, getDatabaseMetrics } from './infrastructure/db';
-import { checkRedis, getRedisMetrics, redis2 } from './infrastructure/redis';
+import { checkRedis, getRedisMetrics, redis2, redis3, redis4 } from './infrastructure/redis';
 import { registerTelegramWebhook } from './services/telegramApi';
 import { internalScheduler } from './services/internalScheduler';
 import { logger } from './observability/logger';
@@ -121,13 +121,17 @@ app.get('/api/health', async (_req, res) => {
   const db = await checkDatabase();
   const redisStatus = await checkRedis();
   const redis2Status = await checkRedis(redis2, 'REDIS_URL_2');
+  const redis3Status = await checkRedis(redis3, 'REDIS_MESAGO_URL');
+  const redis4Status = await checkRedis(redis4, 'REDIS_MESAGO_URL_2');
   const latency = Date.now() - startTime;
 
   const dbMetrics = await getDatabaseMetrics();
   const redisMetrics = await getRedisMetrics();
   const redis2Metrics = await getRedisMetrics(redis2);
+  const redis3Metrics = await getRedisMetrics(redis3);
+  const redis4Metrics = await getRedisMetrics(redis4);
 
-  const isOk = db.connected && db.schema_ready && (redisStatus.connected || redis2Status.connected);
+  const isOk = db.connected && db.schema_ready && (redisStatus.connected || redis2Status.connected || redis3Status.connected);
   const mem = process.memoryUsage();
 
   res.status(isOk ? 200 : 503).json({
@@ -154,6 +158,14 @@ app.get('/api/health', async (_req, res) => {
     redis2: {
       ...redis2Status,
       metrics: redis2Metrics,
+    },
+    redis3: {
+      ...redis3Status,
+      metrics: redis3Metrics,
+    },
+    redis4: {
+      ...redis4Status,
+      metrics: redis4Metrics,
     },
   });
 });

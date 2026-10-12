@@ -32,6 +32,8 @@ export const env = {
   databaseUrl,
   redisUrl: read('REDIS_URL'),
   redisUrl2: read('REDIS_URL_2'),
+  redisUrl3: read('REDIS_URL_3') || read('REDIS_MESAGO_URL'),
+  redisUrl4: read('REDIS_URL_4') || read('REDIS_MESAGO_URL_2'),
   jwtSecret:
     read('JWT_SECRET') ||
     (nodeEnv === 'production' ? '' : 'fallback-super-secret-key-change-me'),
