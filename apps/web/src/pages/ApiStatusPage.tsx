@@ -204,7 +204,7 @@ export function ApiStatusPage() {
             Status & Consumo da Infraestrutura
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Monitoramento em tempo real do Backend, PostgreSQL (Neon) e instâncias Redis Cloud (torqueOS, Fluorescent e Mesago)
+            Monitoramento em tempo real do Backend, PostgreSQL (Neon) e instâncias Redis Cloud (Analytic Pulse, torqueOS e Mesago)
           </p>
         </div>
         <button
@@ -264,7 +264,7 @@ export function ApiStatusPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 text-sm">
-                <ShieldCheck className="w-4 h-4 text-rose-500" /> Redis 1 (torqueOS)
+                <ShieldCheck className="w-4 h-4 text-rose-500" /> Redis 1 (Analytic Pulse)
               </h3>
               <StatusBadge ok={rd1?.connected ?? false} labelOk="Conectado" labelFail="Desconectado" />
             </div>
@@ -279,7 +279,7 @@ export function ApiStatusPage() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2 text-sm">
-                <ShieldCheck className="w-4 h-4 text-rose-500" /> Redis 2 (Fluorescent)
+                <ShieldCheck className="w-4 h-4 text-rose-500" /> Redis 2 (torqueOS)
               </h3>
               <StatusBadge ok={rd2?.connected ?? false} labelOk="Conectado" labelFail="Desconectado" />
             </div>
@@ -388,10 +388,10 @@ export function ApiStatusPage() {
         </div>
 
         {/* Redis 1 */}
-        <RedisMetricCard title="Redis 1 (torqueOS)" data={rd1} envName="REDIS_URL" />
+        <RedisMetricCard title="Redis 1 (Analytic Pulse)" data={rd1} envName="REDIS_URL" />
 
         {/* Redis 2 */}
-        <RedisMetricCard title="Redis 2 (Fluorescent)" data={rd2} envName="REDIS_URL_2" />
+        <RedisMetricCard title="Redis 2 (torqueOS)" data={rd2} envName="REDIS_URL_2" />
 
         {/* Redis 3 (Mesago) */}
         <RedisMetricCard title="Redis Mesago" data={rd3} envName="REDIS_MESAGO_URL" />

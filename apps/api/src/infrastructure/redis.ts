@@ -34,7 +34,7 @@ function createRedisClient(url: string | undefined, name: string): Redis | null 
 }
 
 redis = createRedisClient(env.redisUrl, 'Redis Primary');
-redis2 = createRedisClient(env.redisUrl2, 'Redis Secondary');
+redis2 = createRedisClient(env.redisUrl2, 'Redis TorqueOS');
 redis3 = createRedisClient(env.redisUrl3, 'Redis Mesago');
 redis4 = createRedisClient(env.redisUrl4, 'Redis Mesago 2');
 
